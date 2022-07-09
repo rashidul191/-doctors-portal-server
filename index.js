@@ -26,6 +26,9 @@ async function run() {
     const bookingCollection = client
       .db("doctors_portal")
       .collection("bookings");
+    const userCollection = client
+      .db("doctors_portal")
+      .collection("user");
 
     /**
      * API Naming Convention
@@ -75,6 +78,23 @@ async function run() {
       });
       res.send(services);
     });
+
+    
+
+    // user info
+app.put("/user/:email", async(req, res)=>{
+  const email = req.params.email;
+  const user = req.body;
+  const filter = {email: email};
+  const options = {upsert: true};
+  const updateDoc = {
+    $set: user,
+  };
+  const result = await userCollection.updateOne(filter, updateDoc, options)
+  res.send(result);
+})
+
+
 
     app.get("/booking", async (req, res) => {
       const patient = req.body.patient;
