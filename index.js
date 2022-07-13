@@ -179,7 +179,7 @@ run().catch(console.dir);
 
 // get root port
 app.get("/", (req, res) => {
-  res.send("Running Server side");
+  res.send("Doctors Portal Running Server side");
 });
 
 // listen port number
