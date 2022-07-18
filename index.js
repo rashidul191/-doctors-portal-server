@@ -111,7 +111,9 @@ async function run() {
       .collection("bookings");
     const userCollection = client.db("doctors_portal").collection("user");
     const doctorCollection = client.db("doctors_portal").collection("doctors");
-    const paymentCollection = client.db("doctors_portal").collection("payments");
+    const paymentCollection = client
+      .db("doctors_portal")
+      .collection("payments");
 
     // verify admin
     const verifyAdmin = async (req, res, next) => {
@@ -154,6 +156,7 @@ async function run() {
       const query = {};
       const cursor = serviceCollection.find(query).project({ name: 1 });
       const service = await cursor.toArray();
+
       res.send(service);
     });
 
@@ -192,6 +195,7 @@ async function run() {
     // all users info
     app.get("/users", verifyJWT, async (req, res) => {
       const users = await userCollection.find().toArray();
+
       res.send(users);
     });
 
@@ -242,10 +246,11 @@ async function run() {
     });
 
     app.get("/booking", verifyJWT, async (req, res) => {
-      const patient = req.query.patient;
-      const decodedEmail = req.destroy.email;
-      if (patient === decodedEmail) {
-        const query = { patient: patient };
+      const patientEmail = req.query.patientEmail;
+      const decodedEmail = req.decoded.email;
+
+      if (patientEmail === decodedEmail) {
+        const query = { patientEmail: patientEmail };
         const bookings = await bookingCollection.find(query).toArray();
         return res.send(bookings);
       } else {
@@ -284,13 +289,15 @@ async function run() {
       const updateDoc = {
         $set: {
           paid: true,
-          transactionId: payment.transactionId
+          transactionId: payment.transactionId,
         },
       };
-      const result = await paymentCollection.insertOne(payment)
-      const updatedBooking = await bookingCollection.updateOne(filter, updateDoc);
-      res.send(updatedBooking)
-
+      const result = await paymentCollection.insertOne(payment);
+      const updatedBooking = await bookingCollection.updateOne(
+        filter,
+        updateDoc
+      );
+      res.send(updatedBooking);
     });
 
     // add doctors
