@@ -242,7 +242,7 @@ async function run() {
     });
 
     app.get("/booking", verifyJWT, async (req, res) => {
-      const patient = req.body.patient;
+      const patient = req.query.patient;
       const decodedEmail = req.destroy.email;
       if (patient === decodedEmail) {
         const query = { patient: patient };
