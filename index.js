@@ -1,10 +1,11 @@
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
-const { MongoClient, ServerApiVersion } = require("mongodb");
 require("dotenv").config();
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const nodemailer = require("nodemailer");
 const sgTransport = require("nodemailer-sendgrid-transport");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -44,6 +45,7 @@ const emailSenderOptions = {
 };
 
 const emailClient = nodemailer.createTransport(sgTransport(emailSenderOptions));
+// Booking Appointment send email to user
 function sendAppointmentEmail(booking) {
   const { patientEmail, patientName, treatment, date, slot } = booking;
   const email = {
@@ -65,11 +67,38 @@ function sendAppointmentEmail(booking) {
     if (err) {
       console.log(err);
     } else {
-      console.log("Message sent: ",info);
+      console.log("Message sent: ", info);
     }
   });
 }
 
+// payment paid send email to user
+function sendPaymentConfirmEmail(booking) {
+  const { patientEmail, patientName, treatment, date, slot } = booking;
+  const email = {
+    from: process.env.EMAIL_SENDER,
+    to: patientEmail,
+    subject: `Your appointment for ${treatment} is on ${date} at ${slot} is confirmed`,
+    text: `Your payment for this appointment for ${treatment} is on ${date} at ${slot} is confirmed`,
+    html: `<div>
+    <p>Hello ${patientName} ,</p>
+    <h3>Thanks you for your payment.</h3>
+    <h3>We have received your payment</h3>
+    <p>Looking forward to seeing you on ${date} at ${slot}.</p>
+    <h3>Our Address</h3>
+    <p>West Shwrapara, Mirpur-10, Dhaka</p>
+    <p>Bangladesh</p>
+    <a href="https://github.com/rashidul191">unsubscribe</a>
+  </div>`,
+  };
+  emailClient.sendMail(email, function (err, info) {
+    if (err) {
+      console.log(err);
+    } else {
+      console.log("Message sent: ", info);
+    }
+  });
+}
 // Run function
 async function run() {
   try {
@@ -82,6 +111,7 @@ async function run() {
       .collection("bookings");
     const userCollection = client.db("doctors_portal").collection("user");
     const doctorCollection = client.db("doctors_portal").collection("doctors");
+    const paymentCollection = client.db("doctors_portal").collection("payments");
 
     // verify admin
     const verifyAdmin = async (req, res, next) => {
@@ -104,6 +134,20 @@ async function run() {
      * app.patch("/booking/:id") // update a specific booking
      * app.delete("/booking/:id") // delete a specific booking
      */
+
+    // Create Payment Intent
+    app.post("/create-payment-intent", verifyJWT, async (req, res) => {
+      const service = req.body;
+      const price = service.price;
+      const amount = price * 100;
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+      res.send({ clientSecret: paymentIntent.client_secret });
+    });
 
     // get all services
     app.get("/service", async (req, res) => {
@@ -209,6 +253,13 @@ async function run() {
       }
     });
 
+    app.get("/booking/:id", verifyJWT, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const booking = await bookingCollection.findOne(query);
+      res.send(booking);
+    });
+
     app.post("/booking", async (req, res) => {
       const booking = req.body; // booking data
       const query = {
@@ -223,8 +274,23 @@ async function run() {
       const result = await bookingCollection.insertOne(booking);
       console.log("sending email");
       sendAppointmentEmail(booking);
-      
       res.send({ success: true, result });
+    });
+
+    app.patch("/booking/:id", verifyJWT, async (req, res) => {
+      const id = req.params.id;
+      const payment = req.body;
+      const filter = { _id: ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          paid: true,
+          transactionId: payment.transactionId
+        },
+      };
+      const result = await paymentCollection.insertOne(payment)
+      const updatedBooking = await bookingCollection.updateOne(filter, updateDoc);
+      res.send(updatedBooking)
+
     });
 
     // add doctors
